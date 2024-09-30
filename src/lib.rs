@@ -1,9 +1,6 @@
-mod naive_bayes;
-mod softmax;
+pub mod naive_bayes;
+pub mod regression;
 pub mod util;
-
-pub use naive_bayes::*;
-pub use softmax::softmax;
 
 #[derive(Debug, Default)]
 pub struct Init;

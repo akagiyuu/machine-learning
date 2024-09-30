@@ -1,17 +1,12 @@
-use statistic::{util, GaussianNaiveBayesClassifier, NaiveBayesClassifier};
+use nalgebra::{DMatrix, DVector, SMatrix, SVector};
+use statistic::regression::LinearRegression;
 
 fn main() {
-    let (train, test) =
-        util::load_csv::<2, String>("Naive-Bayes-Classification-Data.csv", 0.95).unwrap();
-    let model = NaiveBayesClassifier::<2>::from_collection(train).unwrap();
-    let model = model.train();
-    let (test_input, test_output): (Vec<_>, Vec<_>) = test.into_iter().unzip();
-    let prediction = model.predict(test_input);
-    let diff = prediction
-        .iter()
-        .zip(test_output.iter())
-        .filter(|(x, y)| x != y)
-        .count() as f64
-        / prediction.len() as f64;
-    println!("{}", diff);
+    let xs = DMatrix::from_row_slice(4, 2, &[1., 1., 1., 2., 2., 2., 2., 3.]);
+    let ys = DVector::from_vec(vec![6., 8., 9., 11.]);
+
+    let model = LinearRegression::new(xs.clone(), ys.clone()).unwrap();
+    let xs_test = DMatrix::from_row_slice(2, 2, &[1., 5., 6., 7.]);
+    let result = model.predict(xs_test);
+    println!("result: {}", result);
 }

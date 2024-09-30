@@ -4,7 +4,7 @@ use anyhow::Result;
 
 use crate::Collection;
 
-pub fn load_csv<const N: usize, T>(
+pub fn load<const N: usize, T>(
     path: impl AsRef<Path>,
     split: f64,
 ) -> Result<(Collection<N, T>, Collection<N, T>)>

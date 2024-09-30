@@ -1,6 +1,6 @@
-mod default_naive_bayes;
-mod gaussian_naive_bayes;
+mod normal;
+mod gaussian;
 
-pub use default_naive_bayes::*;
-pub use gaussian_naive_bayes::*;
+pub use normal::*;
+pub use gaussian::*;
 

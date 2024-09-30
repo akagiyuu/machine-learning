@@ -32,13 +32,13 @@ impl<const N: usize> GaussianNaiveBayesClassifier<N, Init> {
     }
 
     pub fn add(&mut self, input: [f64; N], output: f64) {
-        println!("{}: {}", output, self.unique_outputs.contains(&output) );
+        println!("{}: {}", output, self.unique_outputs.contains(&output));
         if !self.unique_outputs.contains(&output) {
             self.unique_outputs.push(output);
         }
         self.inputs.push(input);
         self.outputs.push(output);
- }
+    }
 
     pub fn train(self) -> GaussianNaiveBayesClassifier<N, Trained> {
         let (input_means, input_variances): (Vec<_>, Vec<_>) = self
