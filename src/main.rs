@@ -1,9 +1,10 @@
 use nalgebra::DVector;
-use statistic::gradient_descent::gradient_descent;
+use statistic::gradient_descent::{gradient_descent, gradient_descent_with_momentum};
 
 fn main() {
     let f = |x: DVector<f64>| x[0] * x[0];
-    let value = gradient_descent(DVector::from_vec(vec![4.]), f, 0.1, f64::EPSILON);
+    let value =
+        gradient_descent_with_momentum(DVector::from_vec(vec![4.]), f, 0.1, 0.5, f64::EPSILON);
     println!("{}", value);
     // let g = |x: DVector<f64>| x.map(|x_i| 2. * x_i);
     // let mut current = DVector::from_vec(vec![4., 3.]);
