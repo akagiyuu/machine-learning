@@ -1,6 +1,6 @@
 use anyhow::Result;
-use core::f64;
-use std::{collections::HashMap, fs, marker::PhantomData};
+use std::f64;
+use std::marker::PhantomData;
 
 use crate::Collection;
 

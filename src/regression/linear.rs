@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use nalgebra::{DMatrix, DVector, SMatrix, SVector};
+use nalgebra::{DMatrix, DVector};
 
 use crate::{Init, Trained};
 

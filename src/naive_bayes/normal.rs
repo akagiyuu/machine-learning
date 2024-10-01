@@ -1,5 +1,5 @@
 use anyhow::Result;
-use std::{collections::HashMap, fs, marker::PhantomData};
+use std::{collections::HashMap, marker::PhantomData};
 
 use crate::{Collection, Init, Trained};
 
