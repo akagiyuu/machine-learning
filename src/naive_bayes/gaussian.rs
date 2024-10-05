@@ -1,120 +1,92 @@
-use anyhow::Result;
+use itertools::multizip;
+use nalgebra::{DMatrix, DVector, RowDVector};
+use std::collections::HashMap;
 use std::f64;
-use std::marker::PhantomData;
 
-use crate::Collection;
-
-#[derive(Default)]
-pub struct Init;
-
-#[derive(Default)]
-pub struct Trained;
 
 #[derive(Debug, Default)]
-pub struct GaussianNaiveBayesClassifier<const N: usize, State = Init> {
-    unique_outputs: Vec<f64>,
-    inputs: Vec<[f64; N]>,
-    outputs: Vec<f64>,
-    input_means: Option<Vec<[f64; N]>>,
-    input_variances: Option<Vec<[f64; N]>>,
-    _state: PhantomData<State>,
+pub struct GaussianNaiveBayesClassifier {
+    means: Vec<RowDVector<f64>>,
+    variances: Vec<RowDVector<f64>>,
+    priors: Vec<f64>,
+    tokens: HashMap<String, usize>,
 }
 
-impl<const N: usize> GaussianNaiveBayesClassifier<N, Init> {
-    pub fn from_collection(collection: Collection<N, f64>) -> Result<Self> {
-        let mut model = Self::default();
-
-        collection.into_iter().for_each(|row| {
-            model.add(row.0, row.1);
+impl GaussianNaiveBayesClassifier {
+    pub fn train(xs: DMatrix<f64>, ys: DVector<String>) -> Self {
+        let mut tokens = HashMap::new();
+        let ys = ys.map(|y| match tokens.get(&y) {
+            Some(&i) => i,
+            None => {
+                tokens.insert(y, tokens.len());
+                tokens.len() - 1
+            }
         });
 
-        Ok(model)
-    }
+        let row_count = xs.nrows() as f64;
+        let mut priors = vec![0.; tokens.len()];
+        ys.iter().for_each(|&y| priors[y] += 1.);
+        priors.iter_mut().for_each(|p| *p /= row_count);
 
-    pub fn add(&mut self, input: [f64; N], output: f64) {
-        println!("{}: {}", output, self.unique_outputs.contains(&output));
-        if !self.unique_outputs.contains(&output) {
-            self.unique_outputs.push(output);
-        }
-        self.inputs.push(input);
-        self.outputs.push(output);
-    }
-
-    pub fn train(self) -> GaussianNaiveBayesClassifier<N, Trained> {
-        let (input_means, input_variances): (Vec<_>, Vec<_>) = self
-            .unique_outputs
-            .iter()
-            .map(|&k| {
-                let filtered_inputs: Vec<_> = self
-                    .inputs
-                    .iter()
-                    .zip(self.outputs.iter())
-                    .filter_map(|(&input, &output)| if output == k { Some(input) } else { None })
-                    .collect();
-                let row_count = filtered_inputs.len();
-                let means: [f64; N] = (0..N)
-                    .map(|j| {
-                        (0..row_count).map(|i| filtered_inputs[i][j]).sum::<f64>() as f64
-                            / row_count as f64
-                    })
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap();
-                let variances: [f64; N] = (0..N)
-                    .map(|j| {
-                        (0..row_count)
-                            .map(|i| (filtered_inputs[i][j] as f64 - means[j]).powi(2))
-                            .sum::<f64>()
-                            / row_count as f64
-                    })
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap();
+        let (means, variances): (Vec<_>, Vec<_>) = (0..priors.len())
+            .map(|class| {
+                let filtered_inputs = DMatrix::from_rows(
+                    &xs.row_iter()
+                        .zip(ys.iter())
+                        .filter_map(
+                            |(input, &output)| if output == class { Some(input) } else { None },
+                        )
+                        .collect::<Vec<_>>(),
+                );
+                let means = filtered_inputs.column_mean().transpose();
+                let variances = filtered_inputs.row_variance();
 
                 (means, variances)
             })
             .unzip();
 
         GaussianNaiveBayesClassifier {
-            unique_outputs: self.unique_outputs,
-            inputs: self.inputs,
-            outputs: self.outputs,
-            input_means: Some(input_means),
-            input_variances: Some(input_variances),
-            _state: PhantomData::<Trained>,
+            means,
+            variances,
+            priors,
+            tokens,
         }
     }
 }
 
-impl<const N: usize> GaussianNaiveBayesClassifier<N, Trained> {
-    pub fn probability(&self, input: [f64; N]) -> Vec<(f64, f64)> {
-        let row_count = self.inputs.len() as f64;
-        let means = self.input_means.as_ref().unwrap();
-        let variances = self.input_variances.as_ref().unwrap();
-
-        self.unique_outputs
+impl GaussianNaiveBayesClassifier {
+    pub fn probability(&self, input: RowDVector<f64>) -> HashMap<String, f64> {
+        self.priors
             .iter()
             .enumerate()
-            .map(|(k, &class)| {
-                let prior = self.outputs.iter().filter(|x| **x == class).count() as f64 / row_count;
-                let likelihood: f64 = (0..N)
-                    .map(|j| {
-                        (-(input[j] - means[k][j]).powi(2) / (2. * variances[k][j])).exp()
-                            / (2. * f64::consts::PI * variances[k][j]).sqrt()
+            .map(|(class, &prior)| {
+                let mean = &self.means[class];
+                let variance = &self.variances[class];
+                let likelihood: f64 = multizip((input.iter(), mean.iter(), variance.iter()))
+                    .map(|(&x, &m, &v)| {
+                        (-(x - m).powi(2) / (2. * v)).exp() / (2. * f64::consts::PI * v).sqrt()
                     })
                     .product();
 
-                (class, prior * likelihood)
+                let class_name = self
+                    .tokens
+                    .iter()
+                    .find(|(_, &i)| i == class)
+                    .unwrap()
+                    .0
+                    .clone();
+
+                (class_name, prior * likelihood)
             })
             .collect()
     }
 
-    pub fn predict(&self, inputs: Vec<[f64; N]>) -> Vec<f64> {
+    pub fn predict(&self, inputs: DMatrix<f64>) -> Vec<String> {
         inputs
-            .into_iter()
+            .row_iter()
             .map(|input| {
-                println!("{:?}", self.probability(input));
-                self.probability(input)
+                // TODO: fix this type hack
+                self.probability(input.transpose().transpose())
                     .into_iter()
                     .max_by(|(_, p1), (_, p2)| p1.total_cmp(p2))
                     .unwrap()

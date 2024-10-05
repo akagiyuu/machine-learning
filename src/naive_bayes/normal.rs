@@ -1,118 +1,87 @@
-use anyhow::Result;
-use std::{collections::HashMap, marker::PhantomData};
+use nalgebra::{DMatrix, DVector, RowDVector};
+use std::collections::HashMap;
 
-use crate::{Collection, Init, Trained};
 
 #[derive(Debug, Default)]
-pub struct NaiveBayesClassifier<const N: usize, State = Init> {
-    input_tokens: HashMap<String, usize>,
-    output_tokens: HashMap<String, usize>,
-    inputs: Vec<[usize; N]>,
-    outputs: Vec<usize>,
-    priors: Option<Vec<f64>>,
-    _state: PhantomData<State>,
+pub struct NaiveBayesClassifier {
+    x_tokens: HashMap<String, usize>,
+    y_tokens: HashMap<String, usize>,
+    xs: DMatrix<usize>,
+    ys: DVector<usize>,
+    priors: Vec<f64>,
 }
 
-impl<const N: usize> NaiveBayesClassifier<N, Init> {
-    pub fn from_collection(collection: Collection<N, String>) -> Result<Self> {
-        let mut model = Self::default();
-
-        collection.into_iter().for_each(|row| {
-            model.add(row.0, row.1);
+impl NaiveBayesClassifier {
+    pub fn train(xs: DMatrix<String>, ys: DVector<String>) -> NaiveBayesClassifier {
+        let mut x_tokens = HashMap::new();
+        let xs = xs.map(|x| match x_tokens.get(&x) {
+            Some(&i) => i,
+            None => {
+                x_tokens.insert(x, x_tokens.len());
+                x_tokens.len() - 1
+            }
         });
-        Ok(model)
-    }
 
-    fn map_add_input(&mut self, input: [String; N]) -> [usize; N] {
-        input.map(|x| match self.input_tokens.get(&x) {
-            Some(&value) => value,
+        let mut y_tokens = HashMap::new();
+        let ys = ys.map(|y| match y_tokens.get(&y) {
+            Some(&i) => i,
             None => {
-                self.input_tokens.insert(x, self.input_tokens.len());
-                self.input_tokens.len() - 1
+                y_tokens.insert(y, y_tokens.len());
+                y_tokens.len() - 1
             }
-        })
-    }
+        });
 
-    fn map_add_output(&mut self, output: String) -> usize {
-        match self.output_tokens.get(&output) {
-            Some(&value) => value,
-            None => {
-                self.output_tokens
-                    .insert(output.clone(), self.output_tokens.len());
-                self.output_tokens.len() - 1
-            }
-        }
-    }
+        let mut priors = vec![0.; y_tokens.len()];
+        ys.iter().for_each(|&y| priors[y] += 1.);
 
-    pub fn add(&mut self, input: [String; N], output: String) {
-        let input = self.map_add_input(input);
-        let output = self.map_add_output(output);
-
-        self.inputs.push(input);
-        self.outputs.push(output);
-    }
-
-    pub fn train(self) -> NaiveBayesClassifier<N, Trained> {
-        let row_count = self.outputs.len() as f64;
-        let priors = (0..self.output_tokens.len())
-            .map(|k| self.outputs.iter().filter(|x| **x == k).count() as f64 / row_count)
-            .collect();
         NaiveBayesClassifier {
-            input_tokens: self.input_tokens,
-            output_tokens: self.output_tokens,
-            inputs: self.inputs,
-            outputs: self.outputs,
-
-            priors: Some(priors),
-            _state: PhantomData::<Trained>,
+            x_tokens,
+            y_tokens,
+            xs,
+            ys,
+            priors,
         }
     }
 }
 
-impl<const N: usize> NaiveBayesClassifier<N, Trained> {
-    fn map_input(&self, input: [String; N]) -> [usize; N] {
-        input.map(|x| self.input_tokens[&x])
-    }
+impl NaiveBayesClassifier {
+    pub fn probability(&self, x: RowDVector<String>) -> HashMap<String, f64> {
+        let x = x.map(|xj| self.x_tokens[&xj]);
 
-    pub fn probability(&self, input: [String; N]) -> HashMap<String, f64> {
-        let input = self.map_input(input);
-        let row_count = self.inputs.len() as f64;
-
-        (0..self.output_tokens.len())
-            .map(|k| {
-                let prior = self.priors.as_ref().unwrap()[k];
-                let likelihood: f64 = (0..N)
+        self.priors
+            .iter()
+            .enumerate()
+            .map(|(class, &prior)| {
+                let likelihood: f64 = (0..x.len())
                     .map(|j| {
-                        self.inputs
-                            .iter()
-                            .zip(self.outputs.iter())
-                            .filter(|(&row_input, &row_output)| {
-                                row_input[j] == input[j] && row_output == k
-                            })
+                        self.xs
+                            .row_iter()
+                            .zip(self.ys.iter())
+                            .filter(|(data_x, &y)| y == class && data_x[j] == x[j])
                             .count() as f64
-                            / row_count
+                            / self.xs.nrows() as f64
                             / prior
                     })
                     .product();
 
-                let output_name = self
-                    .output_tokens
+                let class_name = self
+                    .y_tokens
                     .iter()
-                    .find(|(_, &value)| value == k)
+                    .find(|(_, &value)| value == class)
                     .unwrap()
                     .0
                     .clone();
 
-                (output_name, prior * likelihood)
+                (class_name, prior * likelihood)
             })
             .collect()
     }
 
-    pub fn predict(&self, inputs: Vec<[String; N]>) -> Vec<String> {
+    pub fn predict(&self, inputs: DMatrix<String>) -> Vec<String> {
         inputs
-            .into_iter()
+            .row_iter()
             .map(|input| {
-                self.probability(input)
+                self.probability(input.transpose().transpose())
                     .into_iter()
                     .max_by(|(_, p1), (_, p2)| p1.total_cmp(p2))
                     .unwrap()
