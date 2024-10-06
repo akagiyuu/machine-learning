@@ -8,5 +8,5 @@ anyhow = "1.0.89"
 cached = "0.53.1"
 itertools = "0.13.0"
 linreg = "0.2.0"
-nalgebra = { version = "0.33.0", features = ["rand"] }
+nalgebra = { version = "0.33.0", features = ["rand", "rayon"] }
 rayon = "1.10.0"

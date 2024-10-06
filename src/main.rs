@@ -1,8 +1,7 @@
-use machine_learning::{pla::BinaryPLA, util::csv};
+use machine_learning::{regression::LogisticRegression, util::csv};
 
 fn main() {
-    let (xs, ys) = csv::load::<f64, f64>("pla.csv").unwrap();
-    let ys = ys.map(|x| if x == 0. { -1. } else { 1. });
+    let (xs, ys) = csv::load::<f64, f64>("regression.csv").unwrap();
 
     let split = (0.9 * xs.nrows() as f64).floor() as usize;
 
@@ -11,7 +10,7 @@ fn main() {
 
     let xs_test = xs.rows(split, xs.nrows() - split);
     let ys_test = ys.rows(split, xs.nrows() - split);
-    let model = BinaryPLA::train(xs_train.into(), ys_train.into(), 1., 1000);
+    let model = LogisticRegression::train(xs_train.into(), ys_train.into(), 0.01, 100000);
     println!(
         "Loss: {}/{}",
         (model.predict(xs_test.into()) - ys_test)
@@ -20,5 +19,5 @@ fn main() {
             .count(),
         ys_train.len()
     );
-    // Loss: 31/691
+    // Loss: 1/512
 }

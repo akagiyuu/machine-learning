@@ -7,13 +7,13 @@ pub fn gradient_descent<F: Fn(DVector<f64>) -> f64 + Sync>(
     f: F,
     step_size: f64,
     epsilon: f64,
+    max_iter: usize
 ) -> DVector<f64> {
-    assert!(step_size > 0.);
     assert!(epsilon > 0.);
 
     let mut current = start;
 
-    loop {
+    for _ in 0..max_iter {
         let pre = current.clone();
         current -= gradient(current.clone(), &f, 1).scale(step_size);
         if (current.clone() - pre).norm() < epsilon {
@@ -29,16 +29,15 @@ pub fn gradient_descent_with_gradient_func<G: Fn(DVector<f64>) -> DVector<f64>>(
     gradient_func: G,
     step_size: f64,
     epsilon: f64,
+    max_iter: usize,
 ) -> DVector<f64> {
-    assert!(step_size > 0.);
     assert!(epsilon > 0.);
 
     let mut current = start;
 
-    loop {
+    for _ in 0..max_iter{
         let pre = current.clone();
         current -= gradient_func(current.clone()).scale(step_size);
-        println!("{}", current);
         if (current.clone() - pre).norm() < epsilon {
             break;
         }
