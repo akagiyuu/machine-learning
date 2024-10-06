@@ -1,16 +1,24 @@
-use nalgebra::{DMatrix, DVector};
-use statistic::{pla::BinaryPLA, regression::LinearRegression};
+use machine_learning::{pla::BinaryPLA, util::csv};
 
 fn main() {
-    let xs = DMatrix::new_random(100, 5);
-    let ys: DVector<f64> = DVector::new_random(100);
+    let (xs, ys) = csv::load::<f64, f64>("pla.csv").unwrap();
+    let ys = ys.map(|x| if x == 0. { -1. } else { 1. });
 
-    let xs_train = xs.rows(0, 90);
-    let ys_train = ys.rows(0, 90);
+    let split = (0.9 * xs.nrows() as f64).floor() as usize;
 
-    let xs_test = xs.rows(90, 10);
-    let ys_test = ys.rows(90, 10);
-    let model = BinaryPLA::train(xs.clone(), ys.clone(), 1., 10000);
-    println!("{}", ys_train);
-    println!("{}", (model.predict(xs_train.into()) - ys_train).iter().filter(|&&x| x != 0.).count());
+    let xs_train = xs.rows(0, split);
+    let ys_train = ys.rows(0, split);
+
+    let xs_test = xs.rows(split, xs.nrows() - split);
+    let ys_test = ys.rows(split, xs.nrows() - split);
+    let model = BinaryPLA::train(xs_train.into(), ys_train.into(), 1., 1000);
+    println!(
+        "Loss: {}/{}",
+        (model.predict(xs_test.into()) - ys_test)
+            .iter()
+            .filter(|&&x| x != 0.)
+            .count(),
+        ys_train.len()
+    );
+    // Loss: 31/691
 }

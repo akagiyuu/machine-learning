@@ -1,4 +1,3 @@
-
 use nalgebra::{DMatrix, DVector};
 
 use crate::util;
