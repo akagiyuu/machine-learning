@@ -4,5 +4,7 @@ pub mod util;
 pub mod gradient_descent;
 pub mod pla;
 mod k_mean_clustering;
+mod knn;
 
 pub use k_mean_clustering::*;
+pub use knn::*;

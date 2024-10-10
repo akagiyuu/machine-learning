@@ -1,43 +1,28 @@
-use gnuplot::{
-    AxesCommon, Figure,
-    PlotOption::{Color, PointSize, PointSymbol},
-};
-use machine_learning::{util::csv, KMeanClustering};
+use machine_learning::{util::csv, KNN};
 
 fn main() {
-    let xs = csv::load_data_only::<f64>("cluster_data.csv").unwrap();
+    let (xs, ys) = csv::load::<f64, f64>("regression.csv").unwrap();
 
-    let model = KMeanClustering::train(xs.clone(), 4, 1000);
-    let xs_class = model.predict(xs.clone());
+    let split = (0.9 * xs.nrows() as f64).floor() as usize;
 
-    // Plot the points
-    let class_colors = ["dark-red", "dark-blue", "dark-green", "dark-orange"];
-    let class_shape = ['S', 'O', 'T', 'R'];
-    let mut fg = Figure::new();
-    let graph = fg.axes2d().set_title("Data", &[]);
+    let xs_train = xs.rows(0, split);
+    let ys_train = ys.rows(0, split);
 
-    for (class, mean) in model.means.row_iter().enumerate() {
-        graph.points(
-            vec![mean[0]],
-            vec![mean[1]],
-            &[
-                Color(class_colors[class]),
-                PointSymbol(class_shape[class]),
-                PointSize(3.),
-            ],
-        );
-    }
+    let xs_test = xs.rows(split, xs.nrows() - split);
+    let ys_test = ys.rows(split, xs.nrows() - split);
 
-    for (i, row) in xs.row_iter().enumerate() {
-        graph.points(
-            vec![row[0]],
-            vec![row[1]],
-            &[
-                Color(class_colors[xs_class[i]]),
-                PointSymbol(class_shape[xs_class[i]]),
-            ],
-        );
-    }
-
-    fg.show().unwrap();
+    let model = KNN {
+        xs: xs_train.into(),
+        ys: ys_train.into(),
+        k: 5,
+    };
+    println!(
+        "Loss: {}/{}",
+        (model.regression(xs_test.into()) - ys_test)
+            .iter()
+            .filter(|&&x| x != 0.)
+            .count(),
+        ys_train.len()
+    );
+    // Loss: 43/512
 }
