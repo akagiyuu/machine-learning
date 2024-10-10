@@ -6,9 +6,9 @@ use nalgebra::{DMatrix, DVector, RowDVector, Scalar};
 
 pub fn load<I, O>(path: impl AsRef<Path>) -> Result<(DMatrix<I>, DVector<O>)>
 where
-    I: FromStr + Debug + Clone+Scalar,
+    I: FromStr + Debug + Clone + Scalar,
     <I as std::str::FromStr>::Err: Debug,
-    O: FromStr + Debug + Clone+ Scalar,
+    O: FromStr + Debug + Clone + Scalar,
     <O as std::str::FromStr>::Err: Debug,
 {
     let raw = fs::read_to_string(path)?;
@@ -30,4 +30,27 @@ where
     let ys = DVector::from_vec(ys);
 
     Ok((xs, ys))
+}
+
+pub fn load_data_only<I>(path: impl AsRef<Path>) -> Result<DMatrix<I>>
+where
+    I: FromStr + Debug + Clone + Scalar,
+    <I as std::str::FromStr>::Err: Debug,
+{
+    let raw = fs::read_to_string(path)?;
+    let xs = raw
+        .lines()
+        .skip(1)
+        .map(|row| {
+            RowDVector::from_vec(
+                row.split(',')
+                    .map(|x| x.parse::<I>().unwrap())
+                    .collect_vec(),
+            )
+        })
+        .collect_vec();
+
+    let xs = DMatrix::from_rows(xs.as_slice());
+
+    Ok(xs)
 }
